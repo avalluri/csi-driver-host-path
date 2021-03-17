@@ -2,6 +2,10 @@
 
 This repository hosts the CSI Hostpath driver and all of its build and dependent configuration files to deploy the driver.
 
+---
+*WARNING: This driver is just a demo implementation.
+---
+
 ## Pre-requisite
 - Kubernetes cluster
 - Running version 1.13 or later

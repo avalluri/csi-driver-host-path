@@ -17,6 +17,7 @@ limitations under the License.
 package hostpath
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"os"
@@ -114,16 +115,63 @@ func parseEndpoint(ep string) (string, string, error) {
 }
 
 func logGRPC(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	pri := glog.Level(3)
 	if info.FullMethod == "/csi.v1.Identity/Probe" {
-		return handler(ctx, req)
+		// This call occurs frequently, therefore it only gets log at level 5.
+		pri = 5
 	}
-	glog.V(3).Infof("GRPC call: %s", info.FullMethod)
-	glog.V(5).Infof("GRPC request: %+v", protosanitizer.StripSecrets(req))
+	glog.V(pri).Infof("GRPC call: %s", info.FullMethod)
+
+	var strippedReq fmt.Stringer
+	v5 := glog.V(5)
+	if v5 {
+		strippedReq = protosanitizer.StripSecrets(req)
+		v5.Infof("GRPC request: %+v", strippedReq)
+	}
 	resp, err := handler(ctx, req)
 	if err != nil {
+		// Always log errors. Probably not useful though without the method name?!
 		glog.Errorf("GRPC error: %v", err)
-	} else {
-		glog.V(5).Infof("GRPC response: %+v", protosanitizer.StripSecrets(resp))
 	}
+
+	if v5 {
+		strippedResp := protosanitizer.StripSecrets(resp)
+		v5.Infof("GRPC response: %+v", strippedResp)
+
+		// In JSON format, intentionally logging without stripping secret fields
+		// https://github.com/kubernetes-csi/csi-driver-host-path/pull/260#discussion_r601415031
+		logGRPCJson(info.FullMethod, req, resp, err)
+	}
+
 	return resp, err
+}
+
+// logGRPCJson logs the called GRPC call details in JSON format
+func logGRPCJson(method string, request, reply interface{}, err error) {
+	// Log JSON with the request and response for easier parsing
+	logMessage := struct {
+		Method   string
+		Request  interface{}
+		Response interface{}
+		// Error as string, for backward compatibility.
+		// "" on no error.
+		Error string
+		// Full error dump, to be able to parse out full gRPC error code and message separately in a test.
+		FullError error
+	}{
+		Method:    method,
+		Request:   request,
+		Response:  reply,
+		FullError: err,
+	}
+
+	if err != nil {
+		logMessage.Error = err.Error()
+	}
+
+	msg, err := json.Marshal(logMessage)
+	if err != nil {
+		logMessage.Error = err.Error()
+	}
+	glog.V(5).Infof("gRPCCall: %s\n", msg)
 }
