@@ -20,6 +20,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"math"
 	"os"
 	"os/signal"
 	"path"
@@ -51,6 +52,7 @@ func main() {
 	flag.BoolVar(&cfg.EnableAttach, "enable-attach", false, "Enables RPC_PUBLISH_UNPUBLISH_VOLUME capability.")
 	flag.BoolVar(&cfg.EnableTopology, "enable-topology", true, "Enables PluginCapability_Service_VOLUME_ACCESSIBILITY_CONSTRAINTS capability.")
 	flag.BoolVar(&cfg.EnableVolumeExpansion, "node-expand-required", true, "Enables NodeServiceCapability_RPC_EXPAND_VOLUME capacity.")
+	flag.Int64Var(&cfg.AttachLimit, "attach-limit", math.MaxInt64, "Maximum number of attachable volumes on a node")
 	showVersion := flag.Bool("version", false, "Show version.")
 	proxyEndpoint := flag.String("proxy-endpoint", "", "Instead of running the CSI driver code, just proxy connections from csiEndpoint to the given listening socket.")
 
