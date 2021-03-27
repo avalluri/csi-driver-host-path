@@ -26,6 +26,7 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/kubernetes/pkg/volume/util/volumepathhandler"
 	"k8s.io/utils/mount"
 )
@@ -61,10 +62,20 @@ func (hp *hostPath) NodePublishVolume(ctx context.Context, req *csi.NodePublishV
 
 	// if ephemeral is specified, create volume here to avoid errors
 	if ephemeralVolume {
+		value, ok := req.GetVolumeContext()["size"]
+		if !ok {
+			return nil, status.Errorf(codes.Internal, "required 'size' parameter is missing in the ephemeral volume context")
+		}
+		quantity, err := resource.ParseQuantity(value)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to parse volume size %q as int64: %v", value, err)
+		}
+
 		volID := req.GetVolumeId()
 		volName := fmt.Sprintf("ephemeral-%s", volID)
+		size := quantity.Value()
 		kind := req.GetVolumeContext()[storageKind]
-		vol, err := hp.createVolume(req.GetVolumeId(), volName, maxStorageCapacity, mountAccess, ephemeralVolume, kind)
+		vol, err := hp.createVolume(req.GetVolumeId(), volName, size, mountAccess, ephemeralVolume, kind)
 		if err != nil && !os.IsExist(err) {
 			glog.Error("ephemeral mode failed to create volume: ", err)
 			return nil, err
